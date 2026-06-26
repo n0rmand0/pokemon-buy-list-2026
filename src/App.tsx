@@ -63,6 +63,7 @@ function App() {
             new Date(a.localId || 0).getTime() -
             new Date(b.localId || 0).getTime(),
         );
+        getAppreciation(combinedData);
         setCardData(combinedData); //
         console.log("Card Data loaded:", combinedData);
       });
@@ -73,21 +74,28 @@ function App() {
     }
   };
 
+  const getAppreciation = (all: any) => {
+    all.map((card: any) => {
+      const oneMonthPrice = card.priceHistory.onemonth;
+      const sixMonthPrice = card.priceHistory.sixmonth;
+
+      card.appreciationSix =
+        oneMonthPrice && sixMonthPrice
+          ? (((sixMonthPrice - oneMonthPrice) / oneMonthPrice) * 100).toFixed(0)
+          : "--";
+      card.appreciationMarket =
+        card.pricing?.tcgplayer?.holofoil.marketPrice && sixMonthPrice
+          ? (
+              ((card.pricing?.tcgplayer?.holofoil.marketPrice - sixMonthPrice) /
+                sixMonthPrice) *
+              100
+            ).toFixed(0)
+          : "--";
+    });
+  };
+
   const cardUI = (card: any, key: number) => {
-    const oneMonthPrice = card.priceHistory.onemonth;
-    const sixMonthPrice = card.priceHistory.sixmonth;
-    const appreciationSix =
-      oneMonthPrice && sixMonthPrice
-        ? (((sixMonthPrice - oneMonthPrice) / oneMonthPrice) * 100).toFixed(0)
-        : "--";
-    const appreciationMarket =
-      card.pricing?.tcgplayer?.holofoil.marketPrice && sixMonthPrice
-        ? (
-            ((card.pricing?.tcgplayer?.holofoil.marketPrice - sixMonthPrice) /
-              sixMonthPrice) *
-            100
-          ).toFixed(0)
-        : "--";
+    // cards[card.id].appreciationMarket = appreciationMarket;
 
     return (
       <div key={key} className="card">
@@ -101,32 +109,33 @@ function App() {
           </p>
           {/* <p className="card-date">Nov 12,2026</p> */}
           <p className="card-price">
-            1 Month Price: ${oneMonthPrice.toFixed(2)}{" "}
+            1 Month Price: ${Number(card.priceHistory.onemonth.toFixed(2))}{" "}
           </p>
           <p className="card-price">
-            6 Month Price: ${sixMonthPrice.toFixed(2)}{" "}
+            6 Month Price: ${Number(card.priceHistory.sixmonth.toFixed(2))}{" "}
             <span
               className={
-                Number(appreciationSix) < 0
+                Number(card.appreciationSix) < 0
                   ? "card-neg-appreciation "
                   : "card-pos-appreciation"
               }
             >
-              ({appreciationSix}%)
+              ({Number(card.appreciationSix)}%)
             </span>
           </p>
           <p className="card-market-price">
             <span className="card-market-price-icon"></span>
             Market Price $
-            {card.pricing.tcgplayer?.holofoil.marketPrice.toFixed(2) || "--"}
+            {Number(card.pricing.tcgplayer?.holofoil.marketPrice.toFixed(2)) ||
+              "--"}
             <span
               className={
-                Number(appreciationMarket) < 0
+                Number(card.appreciationMarket) < 0
                   ? "card-neg-appreciation "
                   : "card-pos-appreciation"
               }
             >
-              ({appreciationMarket}%)
+              ({Number(card.appreciationMarket)}%)
             </span>
           </p>
           <p className="card-link">
@@ -166,6 +175,15 @@ function App() {
             new Date(setData[a.set?.id].releaseDate || 0).getTime() -
             new Date(setData[b.set?.id].releaseDate || 0).getTime(),
         );
+
+      case "appreciation-high":
+        return dataCopy.sort(
+          (a, b) => (b.appreciationMarket || 0) - (a.appreciationMarket || 0),
+        );
+      case "appreciation-low":
+        return dataCopy.sort(
+          (a, b) => (a.appreciationMarket || 0) - (b.appreciationMarket || 0),
+        );
       default:
         return dataCopy;
     }
@@ -196,6 +214,10 @@ function App() {
 
             <option value="market-low">Market Price (Low to High)</option>
             <option value="market-high">Market Price (High to Low)</option>
+            <option value="appreciation-high">
+              Appreciation (High to Low)
+            </option>
+            <option value="appreciation-low">Appreciation (Low to High)</option>
           </select>
         </div>
       </header>
