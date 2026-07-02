@@ -4,13 +4,57 @@ import TCGdex from "@tcgdex/sdk";
 // import viteLogo from "./assets/vite.svg";
 // import heroImg from "./assets/hero.png";
 import "./App.css";
-import { cards } from "./cards";
 import { sets } from "./sets";
 
 // Instantiate the SDK with your preferred language
 const tcgdex = new TCGdex("en");
 
 let setData: Record<string, any> = {};
+const sheetUrl =
+  "https://docs.google.com/spreadsheets/d/1oAsMClxIqsPrKJU3bpqwQIz4MQlYi-w7edN7vfikYDc/gviz/tq?tqx=out:json";
+
+const formatDate = (dateString: string | undefined) => {
+  if (!dateString) return "--";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
+const fetchSheetCards = async () => {
+  const response = await fetch(sheetUrl);
+  const text = await response.text();
+  const jsonStart = text.indexOf("{");
+  const jsonEnd = text.lastIndexOf(")");
+  const sheetData = JSON.parse(text.slice(jsonStart, jsonEnd));
+  const cols = sheetData.table.cols;
+  const rows = sheetData.table.rows;
+  console.log("Fetched sheet data:", rows, cols);
+  return rows
+    .map((row: any) => {
+      const rowObj: Record<string, any> = {};
+      row.c.forEach((cell: any, index: number) => {
+        const column = cols[index];
+        const key = (column.label || column.id || "").trim();
+        rowObj[key] = cell?.v;
+      });
+
+      if (!rowObj.id) return null;
+      return {
+        id: rowObj.id,
+        url: rowObj.url,
+        priceHistory: {
+          onemonth: Number(rowObj.one_month) || 0,
+          sixmonth: Number(rowObj.six_month) || 0,
+        },
+        sheetData: rowObj,
+      };
+    })
+    .filter(Boolean);
+};
 
 function App() {
   // const [isLoading, setIsLoading] = useState(true);
@@ -37,8 +81,9 @@ function App() {
 
   const onLoad = async () => {
     try {
-      const cardPromises = cards.map(
-        async (card) => await tcgdex.card.get(card.id),
+      const sheetCards = await fetchSheetCards();
+      const cardPromises = sheetCards.map(
+        async (card: any) => await tcgdex.card.get(card.id),
       );
       const setPromises = sets.map(
         async (id) => await tcgdex.fetch("sets", id),
@@ -54,10 +99,17 @@ function App() {
 
       // Wait for all cardIds.map promises to complete
       await Promise.all(cardPromises).then((results) => {
-        const combinedData = results.map((apiCard, index) => ({
-          ...apiCard,
-          ...cards[index],
-        }));
+        const combinedData = results
+          .map((apiCard, index) =>
+            apiCard
+              ? {
+                  ...apiCard,
+                  ...sheetCards[index],
+                }
+              : null,
+          )
+          .filter(Boolean);
+
         combinedData.sort(
           (a, b) =>
             new Date(a.localId || 0).getTime() -
@@ -106,6 +158,8 @@ function App() {
           <h3 className="card-name">{card.name}</h3>
           <p className="card-set">
             {card.set?.name} {card.localId}/{card.set.cardCount.official}
+            <br />
+            {formatDate(setData[card.set?.id]?.releaseDate)}
           </p>
           {/* <p className="card-date">Nov 12,2026</p> */}
           <p className="card-price">
@@ -166,14 +220,14 @@ function App() {
       case "set-release-newest":
         return dataCopy.sort(
           (a, b) =>
-            new Date(setData[b.set?.id].releaseDate || 0).getTime() -
-            new Date(setData[a.set?.id].releaseDate || 0).getTime(),
+            new Date(setData[b.set?.id]?.releaseDate || 0).getTime() -
+            new Date(setData[a.set?.id]?.releaseDate || 0).getTime(),
         );
       case "set-release-oldest":
         return dataCopy.sort(
           (a, b) =>
-            new Date(setData[a.set?.id].releaseDate || 0).getTime() -
-            new Date(setData[b.set?.id].releaseDate || 0).getTime(),
+            new Date(setData[a.set?.id]?.releaseDate || 0).getTime() -
+            new Date(setData[b.set?.id]?.releaseDate || 0).getTime(),
         );
 
       case "appreciation-high":
